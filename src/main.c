@@ -104,18 +104,19 @@ static void main_task(void *pvParameters) {
   printf("\r\n");
 
   // Initializing pressure sensor (if present ...)
-  lps25hInit(&hi2c1);
-  testSupportPrintStart("Initializing pressure sensor");
-  if (lps25hTestConnection()) {
-    printf("[OK]\r\n");
-    lps25hSetEnabled(true);
-  } else {
-    printf("[FAIL] (%u)\r\n", (unsigned int)hi2c1.ErrorCode);
-    selftestPasses = false;
-  }
+  // lps25hInit(&hi2c1);
+  // testSupportPrintStart("Initializing pressure sensor");
+  // if (lps25hTestConnection()) {
+  //   printf("[OK]\r\n");
+  //   lps25hSetEnabled(true);
+  // } else {
+  //   printf("[FAIL] (%u)\r\n", (unsigned int)hi2c1.ErrorCode);
+  //   selftestPasses = false;
+  //   lps25hSetEnabled(false);
+  // }
 
-  testSupportPrintStart("Pressure sensor self-test");
-  testSupportReport(&selftestPasses, lps25hSelfTest());
+  // testSupportPrintStart("Pressure sensor self-test");
+  // testSupportReport(&selftestPasses, lps25hSelfTest());
 
   // Initializing i2c eeprom
   eepromInit(&hi2c1);

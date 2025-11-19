@@ -102,3 +102,12 @@ Go to the [contribute page](https://www.bitcraze.io/contribute/) on our website 
 Run the automated build locally to test your code
 
 	./tools/build/build
+
+
+### OH SHIT I'M GOATED 
+
+To build this properly without any LPS bullshit do: 
+1) `make clean` 
+2) `sudo docker run --rm -v ${PWD}:/module bitcraze/builder:36 ./tools/build/compile` #Note you will have to do this twice if you have not already gotten the docker image downloaded (aka if first time running on machine)
+3) `make dfu` # after plugging in in DFU mode 
+
