@@ -25,6 +25,7 @@
 #include <stm32f0xx_hal.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <math.h>
 
 #include "FreeRTOS.h"
@@ -62,6 +63,7 @@ static void handleButton(void);
 static void changeMode(unsigned int newMode);
 static void changeRadioMode(unsigned int newMode);
 static void changePower(uint8_t power);
+static bool parsePosition(const char *input, float out[3]);
 static void printModeList();
 static void printRadioModeList();
 static void printMode();
@@ -70,11 +72,13 @@ static void printPowerHelp();
 static void help();
 static void bootload(void);
 
-typedef enum {mainMenu, modeMenu, idMenu, radioMenu, powerMenu} Menu_t;
+typedef enum {mainMenu, modeMenu, idMenu, radioMenu, powerMenu, positionMenu} Menu_t;
 typedef struct {
   bool configChanged;
   Menu_t currentMenu;
   unsigned int tempId;
+  char positionBuf[64];
+  uint8_t positionIndex;
 } MenuState;
 
 static void main_task(void *pvParameters) {
@@ -280,6 +284,14 @@ static void handleMenuMain(char ch, MenuState* menuState) {
          menuState->currentMenu = powerMenu;
          menuState->configChanged = false;
          break;
+    case 'o':
+      printf("Enter anchor position as three floats (x y z) then enter: ");
+      fflush(stdout);
+      menuState->currentMenu = positionMenu;
+      menuState->configChanged = false;
+      menuState->positionIndex = 0;
+      memset(menuState->positionBuf, 0, sizeof(menuState->positionBuf));
+      break;
     case 'u':
       bootload();
     default:
@@ -397,11 +409,36 @@ static void handleMenuPower(char ch, MenuState* menuState) {
   }
 }
 
+static void handleMenuPosition(char ch, MenuState* menuState) {
+  if (ch == '\r' || ch == '\n') {
+    float pos[3] = {0.0f, 0.0f, 0.0f};
+    printf("\r\n");
+    if (parsePosition(menuState->positionBuf, pos)) {
+      cfgWriteFP32list(cfgAnchorPos, pos, 3);
+      printf("Setting anchor position to %f %f %f\r\n", pos[0], pos[1], pos[2]);
+    } else {
+      printf("Invalid position. Expected: x y z\r\n");
+      menuState->configChanged = false;
+    }
+    menuState->currentMenu = mainMenu;
+    return;
+  }
+
+  if (menuState->positionIndex < (sizeof(menuState->positionBuf) - 1)) {
+    menuState->positionBuf[menuState->positionIndex++] = ch;
+    putchar(ch);
+    fflush(stdout);
+  }
+  menuState->configChanged = false;
+}
+
 static void handleSerialInput(char ch) {
   static MenuState menuState = {
     .configChanged = true,
     .currentMenu = mainMenu,
     .tempId = 0,
+    .positionBuf = {0},
+    .positionIndex = 0,
   };
 
   menuState.configChanged = true;
@@ -421,6 +458,9 @@ static void handleSerialInput(char ch) {
       break;
     case powerMenu:
       handleMenuPower(ch, &menuState);
+      break;
+    case positionMenu:
+      handleMenuPosition(ch, &menuState);
       break;
   }
 
@@ -501,6 +541,31 @@ static void changePower(uint8_t power) { //expects [0, POWER_LEVELS-1] interval
   uint32_t txPower = power_bits | (power_bits<<8) | (power_bits<<16) | (power_bits<<24);
   printf("Setting txpower to: 0x%lX = %.1fdB\r\n", txPower, db_amp+db_mix);
   cfgWriteU32(cfgTxPower, txPower);
+}
+
+static bool parsePosition(const char *input, float out[3]) {
+  char *end = NULL;
+  const char *cursor = input;
+  for (int i = 0; i < 3; i++) {
+    while (*cursor == ' ' || *cursor == '\t' || *cursor == ',') {
+      cursor++;
+    }
+    if (*cursor == '\0') {
+      return false;
+    }
+    out[i] = strtof(cursor, &end);
+    if (end == cursor) {
+      return false;
+    }
+    cursor = end;
+  }
+  while (*cursor != '\0') {
+    if (*cursor != ' ' && *cursor != '\t' && *cursor != ',') {
+      return false;
+    }
+    cursor++;
+  }
+  return true;
 }
 
 static void printModeList()
@@ -599,6 +664,7 @@ static void help() {
   printf("m   - List and change mode\r\n");
   printf("r   - List and change UWB radio settings\r\n");
   printf("p   - change power mode\r\n");
+  printf("o   - set anchor position\r\n");
   printf("d   - reset configuration\r\n");
   printf("u   - enter BSL (DFU mode)\r\n");
   printf("h   - This help\r\n");
